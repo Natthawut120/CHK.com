@@ -18,7 +18,7 @@
 
 
     function submitForm(formData) {
-      const scriptURL = 'https://script.google.com/macros/library/d/1Q5jNjuFAbe_rdvJc7cXTwncGcowLqdsiPMzhzEXI1CdMz2FF017ouE6U/1';
+      const scriptURL = 'https://script.google.com/macros/s/AKfycbww__552eLu53JlTL4d-Zlg6F4DFp3gkw3jueBT4crHzyhXWdiQFTIYro802BljUKIZgg/exec';
 
 
       toggleLoading(true);
