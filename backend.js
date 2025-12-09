@@ -1,366 +1,616 @@
-// =====================================
-// Backend
-// =====================================
+// =======================
+// Configuration
+// =======================
 const ROOM_CAPACITY = {
     'ห้องประชุม A': 60,
     'ห้องประชุม B': 300,
     'หอประชุม': 500
 };
 
-// =====================================
-// Global State
-// =====================================
+// =======================
+// Navigation & State
+// =======================
 let currentPage = 'booking';
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let allBookings = [];
 
-// =====================================
-// UI Utilities
-// =====================================
-function showStatus(message, isSuccess = true) {
-    const box = document.getElementById('statusMessage');
-    if (!box) return;
+// =======================
+// Form Submission (Original)
+// =======================
+function showStatus(message, isSuccess) {
+    const statusElement = document.getElementById('statusMessage');
+    statusElement.textContent = message;
+    statusElement.className = isSuccess ? 'status-message success' : 'status-message error';
+    statusElement.style.display = 'block';
 
-    box.textContent = message;
-    box.className = isSuccess ? 'status-message success' : 'status-message error';
-    box.style.display = 'block';
-
-    setTimeout(() => (box.style.display = 'none'), 5000);
+    setTimeout(() => {
+        statusElement.style.display = 'none';
+    }, 5000);
 }
 
 function toggleLoading(show) {
-    const btn1 = document.querySelector('.order-btn');
-    const btn2 = document.querySelector('.btn-ghost');
-    const loading = document.getElementById('loading');
-
-    if (loading) loading.style.display = show ? 'block' : 'none';
-    if (btn1) btn1.disabled = show;
-    if (btn2) btn2.disabled = show;
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+    document.querySelector('.order-btn').disabled = show;
+    document.querySelector('.btn-ghost').disabled = show;
 }
 
-// =====================================
-// Submit Booking Form
-// =====================================
 function submitForm(params) {
-    const scriptURL = "https://script.google.com/macros/s/AKfycbxuYQlZqkgobToZXEGP9qTR64NgGCgn1pscyhkorM2tLBvDjSdQh8h7wH0V5tCi8lr9jw/exec";
+    // ✅ ใส่ URL GAS ทั้งสอง
+    const scriptURLs = [
+        "https://script.google.com/macros/s/AKfycbxyAF2s2dtvV9T7eGffmDbP2QkmMYiNEsT3tKDRmxhi6pRNtq74aAJCwjmL1Zj-Ec3uPg/exec",
+        "https://script.google.com/macros/s/AKfycby9ZiuVp2kDUqtB5wBrR7jw2pDlHGpJi8ivKjbXQIzIH_AUavm2uusbnmDxfwT9hJua/exec"
+    ];
+
     toggleLoading(true);
 
-    fetch(scriptURL, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params
-    })
-        .then(res => {
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
+    // ส่งแบบ Promise.all เพื่อให้รอผลทั้งหมด
+    Promise.all(
+        scriptURLs.map(url =>
+            fetch(url, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            }).then(res => {
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                return res.json();
+            })
+        )
+    )
+        .then(results => {
             toggleLoading(false);
-            if (data.result === "success") {
-                document.getElementById("bookingForm")?.reset();
+
+            const allSuccess = results.every(r => r.result === "success");
+
+            if (allSuccess) {
+                showStatus("✅ ส่งข้อมูลสำเร็จ! ข้อมูลถูกบันทึกแล้วในทั้งสองชีท", true);
+                document.getElementById("bookingForm").reset();
                 document.getElementById("otherInputBox").style.display = "none";
-                showStatus("✅ ส่งข้อมูลสำเร็จ!", true);
             } else {
-                showStatus("❌ " + (data.message || "เกิดข้อผิดพลาด"), false);
+                const failed = results.filter(r => r.result !== "success");
+                showStatus("❌ เกิดข้อผิดพลาด: " + JSON.stringify(failed), false);
             }
         })
         .catch(err => {
             toggleLoading(false);
-            showStatus("❌ ส่งข้อมูลล้มเหลว: " + err.message, false);
+            showStatus("❌ เกิดข้อผิดพลาดในการส่งข้อมูล: " + err.message, false);
+            console.error('❌ Error:', err);
         });
 }
 
-// =====================================
-// Page Navigation
-// =====================================
-document.addEventListener("DOMContentLoaded", () => {
-    const today = new Date().toISOString().split("T")[0];
-    const bookingInput = document.getElementById("bookingDate");
-    if (bookingInput) bookingInput.min = today;
 
+// =======================
+// Page Navigation
+// =======================
+document.addEventListener('DOMContentLoaded', function () {
+    // Set minimum date
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput) {
+        dateInput.min = today;
+    }
+
+    // Menu navigation
     document.getElementById('mainMenuBtn')?.addEventListener('click', () => switchPage('booking'));
     document.getElementById('calendarMenuBtn')?.addEventListener('click', () => switchPage('calendar'));
     document.getElementById('statusBtn')?.addEventListener('click', () => {
         window.open('https://docs.google.com/spreadsheets/d/1ArBhbv2iQGkSBLus0b88vVxpmzc4i2QgM_w2JdEnjBc/edit?gid=0', '_blank');
     });
 
-    // Calendar navigation
-    document.getElementById('prevMonth')?.addEventListener('click', () => changeMonth(-1));
-    document.getElementById('nextMonth')?.addEventListener('click', () => changeMonth(1));
+    // Calendar controls
+    document.getElementById('prevMonth')?.addEventListener('click', () => {
+        currentMonth--;
+        if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+        }
+        renderCalendar();
+    });
+
+    document.getElementById('nextMonth')?.addEventListener('click', () => {
+        currentMonth++;
+        if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+        }
+        renderCalendar();
+    });
 
     // Room filters
     ['filterRoomA', 'filterRoomB', 'filterHall'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', renderCalendar);
+        document.getElementById(id)?.addEventListener('change', () => renderCalendar());
     });
 });
 
 function switchPage(page) {
-    currentPage = page;
-
-    document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('bookingPage').style.display = page === 'booking' ? 'block' : 'none';
-    document.getElementById('calendarPage').style.display = page === 'calendar' ? 'block' : 'none';
+    document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
 
     if (page === 'booking') {
-        document.getElementById('mainMenuBtn')?.classList.add('active');
-    } else {
-        document.getElementById('calendarMenuBtn')?.classList.add('active');
+        document.getElementById('mainMenuBtn').classList.add('active');
+        document.getElementById('bookingPage').style.display = 'block';
+        document.getElementById('calendarPage').style.display = 'none';
+        currentPage = 'booking';
+    } else if (page === 'calendar') {
+        document.getElementById('calendarMenuBtn').classList.add('active');
+        document.getElementById('bookingPage').style.display = 'none';
+        document.getElementById('calendarPage').style.display = 'block';
+        currentPage = 'calendar';
         loadBookingsData();
     }
 }
 
-function changeMonth(step) {
-    currentMonth += step;
-    if (currentMonth < 0) (currentMonth = 11, currentYear--);
-    if (currentMonth > 11) (currentMonth = 0, currentYear++);
-    renderCalendar();
-}
-
-// =====================================
-// Fetch Booking Data
-// =====================================
+// =======================
+// Load Bookings Data
+// =======================
 async function loadBookingsData() {
     const loading = document.getElementById('calendarLoading');
-    if (loading) loading.style.display = 'block';
+    loading.style.display = 'block';
 
     try {
-        const url = "https://script.google.com/macros/s/AKfycbzB1JwJltwD8CNx5iAIz80uq5O_oqV5LZBLcrcuEcWLWJqY2CBAjDCDuBHTcRe9W1Wbzw/exec";
-        const res = await fetch(url);
-        const raw = await res.text();
+        // ✅ ลองทั้ง 2 วิธี
+        const scriptURL = "https://script.google.com/macros/s/AKfycbxyAF2s2dtvV9T7eGffmDbP2QkmMYiNEsT3tKDRmxhi6pRNtq74aAJCwjmL1Zj-Ec3uPg/exec";
+       
+
+        console.log('🔄 Fetching data from:', scriptURL);
+
+        const response = await fetch(scriptURL);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const text = await response.text();
+        console.log('📡 Raw response:', text.substring(0, 200) + '...');
 
         let data;
         try {
-            data = JSON.parse(raw);
-        } catch {
-            throw new Error("ข้อมูลไม่ใช่ JSON");
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('❌ JSON parse error:', e);
+            throw new Error('ไม่สามารถแปลง response เป็น JSON ได้');
         }
 
-        if (!Array.isArray(data)) throw new Error("API ไม่ได้ส่ง array กลับมา");
+        console.log('📊 Parsed data type:', typeof data);
+        console.log('📊 Is array?', Array.isArray(data));
+        console.log('📊 Data:', data);
 
-        allBookings = data.map(row => ({
-            name: row.fullName || "",
-            email: row.email || "",
-            department: row.department || "",
-            participants: Number(row.participants || 0),
-            date: normalizeDate(row.bookingDate),
-            startTime: row.startTime || "",
-            endTime: row.endTime || "",
-            purpose: row.purpose || "",
-            room: row.room || "",
-            additionalInfo: row.additionalInfo || "",
-            breakTime: row.breakTime || "",
-            status: row.status || "รอตรวจสอบ"
+        // ✅ ตรวจสอบว่า data เป็น array หรือไม่
+        if (!Array.isArray(data)) {
+            console.error('❌ Response is not an array:', data);
+            throw new Error('ข้อมูลที่ได้รับไม่ถูกต้อง - API ไม่ได้ส่ง array กลับมา');
+        }
+
+        // แปลงข้อมูลให้อยู่ในรูปแบบที่ใช้งานได้
+        allBookings = data.map(item => ({
+            name: item.fullName || '',
+            email: item.email || '',
+            department: item.department || '',
+            participants: parseInt(item.participants) || 0,
+            date: formatDateString(item.bookingDate),
+            startTime: item.startTime || '',
+            endTime: item.endTime || '',
+            purpose: item.purpose || '',
+            room: item.room || '',
+            additionalInfo: item.additionalInfo || '',
+            status: item.status || 'รอตรวจสอบ',
+            breakTime: item.breakTime || '',
+            timestamp: item.timestamp || ''
         }));
 
+        console.log('✅ โหลดข้อมูลสำเร็จ:', allBookings.length, 'รายการ');
         renderCalendar();
 
-    } catch (err) {
-        showCalendarError("โหลดข้อมูลล้มเหลว: " + err.message);
+    } catch (error) {
+        console.error('Error loading bookings:', error);
+        showCalendarError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message);
     } finally {
-        if (loading) loading.style.display = 'none';
+        loading.style.display = 'none';
     }
 }
 
-// =====================================
-// Helper: Normalize Date Format
-// =====================================
-function normalizeDate(value) {
-    if (!value) return "";
+function formatDateString(dateValue) {
+    if (!dateValue) return '';
 
-    if (typeof value === "string" && value.includes("/")) {
-        const [d, m, y] = value.split("/");
-        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    let date;
+    if (typeof dateValue === 'string') {
+        // ถ้าเป็น format DD/MM/YYYY (จาก timestamp)
+        if (dateValue.includes('/')) {
+            const parts = dateValue.split('/');
+            if (parts.length === 3) {
+                date = new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+        } else {
+            date = new Date(dateValue);
+        }
+    } else {
+        date = new Date(dateValue);
     }
 
-    const d = new Date(value);
-    if (isNaN(d)) return "";
-    return d.toISOString().split("T")[0];
+    if (!date || isNaN(date)) return '';
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
 }
 
-// =====================================
-// Calendar Rendering
-// =====================================
+function showCalendarError(message) {
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = `<div style="grid-column: 1/-1; padding:20px; text-align:center; color:#dc3545;">${message}</div>`;
+}
+
+// =======================
+// Render Calendar
+// =======================
 function renderCalendar() {
     const grid = document.getElementById('calendarGrid');
-    const head = document.getElementById('currentMonthYear');
-    if (!grid || !head) return;
+    const monthYear = document.getElementById('currentMonthYear');
 
-    const MONTH = [
-        "มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
-        "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"
+    const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
-    head.textContent = `${MONTH[currentMonth]} ${currentYear + 543}`;
-    grid.innerHTML = "";
+    monthYear.textContent = `${thaiMonths[currentMonth]} ${currentYear + 543}`;
 
-    // Day Headers
-    ["อา","จ","อ","พ","พฤ","ศ","ส"].forEach(d => {
-        const div = document.createElement('div');
-        div.className = "calendar-day-header";
-        div.textContent = d;
-        grid.appendChild(div);
+    grid.innerHTML = '';
+
+    // Day headers
+    const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    dayNames.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'calendar-day-header';
+        header.textContent = day;
+        grid.appendChild(header);
     });
 
-    const first = new Date(currentYear, currentMonth, 1).getDay();
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const prevDays = new Date(currentYear, currentMonth, 0).getDate();
+    const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
 
     const today = new Date();
-    const isThisMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+    const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+    const todayDate = today.getDate();
 
-    const activeRooms = getActiveRooms();
+    const activeRooms = [];
+    if (document.getElementById('filterRoomA')?.checked) activeRooms.push('ห้องประชุม A');
+    if (document.getElementById('filterRoomB')?.checked) activeRooms.push('ห้องประชุม B');
+    if (document.getElementById('filterHall')?.checked) activeRooms.push('หอประชุม');
 
-    // Previous month filler cells
-    for (let i = first - 1; i >= 0; i--) {
-        grid.appendChild(createDayCell(prevDays - i, true));
+    // Previous month days
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        const dayDiv = createDayCell(day, true, false, null, activeRooms);
+        grid.appendChild(dayDiv);
     }
 
-    // Main month cells
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const isToday = isThisMonth && d === today.getDate();
-        grid.appendChild(createDayCell(d, false, isToday, dateStr, activeRooms));
+    // Current month days
+    for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = isCurrentMonth && day === todayDate;
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayDiv = createDayCell(day, false, isToday, dateStr, activeRooms);
+        grid.appendChild(dayDiv);
     }
 
-    // Next month filler
-    const total = first + daysInMonth;
-    for (let i = 1; i <= 42 - total; i++) {
-        grid.appendChild(createDayCell(i, true));
+    // Next month days
+    const remainingCells = 42 - (firstDay + daysInMonth);
+    for (let day = 1; day <= remainingCells; day++) {
+        const dayDiv = createDayCell(day, true, false, null, activeRooms);
+        grid.appendChild(dayDiv);
     }
 }
 
-function getActiveRooms() {
-    const rooms = [];
-    if (document.getElementById('filterRoomA')?.checked) rooms.push('ห้องประชุม A');
-    if (document.getElementById('filterRoomB')?.checked) rooms.push('ห้องประชุม B');
-    if (document.getElementById('filterHall')?.checked) rooms.push('หอประชุม');
-    return rooms;
-}
+function createDayCell(day, isOtherMonth, isToday, dateStr, activeRooms) {
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'calendar-day';
 
-// =====================================
-// Create Calendar Cell
-// =====================================
-function createDayCell(day, isOther, isToday = false, dateStr = null, activeRooms = []) {
-    const div = document.createElement('div');
-    div.className = 'calendar-day';
-    if (isOther) div.classList.add('other-month');
-    if (isToday) div.classList.add('today');
+    if (isOtherMonth) {
+        dayDiv.classList.add('other-month');
+    }
+    if (isToday) {
+        dayDiv.classList.add('today');
+    }
 
-    div.innerHTML = `<div class="day-number">${day}</div>`;
+    const dayNumber = document.createElement('div');
+    dayNumber.className = 'day-number';
+    dayNumber.textContent = day;
+    dayDiv.appendChild(dayNumber);
 
-    if (!isOther && dateStr) {
-        const books = allBookings.filter(b => b.date === dateStr);
+    if (!isOtherMonth && dateStr) {
+        const dayBookings = allBookings.filter(b => b.date === dateStr);
 
-        if (books.length > 0) {
-            div.classList.add('has-booking');
-
-            // Count
-            const count = document.createElement('div');
-            count.className = 'booking-count';
-            count.textContent = `${books.length} การจอง`;
-            div.appendChild(count);
-
-            // Seat summary
-            const info = document.createElement('div');
-            info.className = 'seats-info';
-
+        if (dayBookings.length > 0) {
+            // คำนวณจำนวนที่นั่งแต่ละห้อง
+            const roomSeats = {};
             activeRooms.forEach(room => {
-                const used = books.filter(b => b.room === room)
-                    .reduce((s, b) => s + b.participants, 0);
-
-                const left = ROOM_CAPACITY[room] - used;
-                const short = room.replace("ห้องประชุม ", "") || "Hall";
-
-                let cls = "seats-available";
-                if (left <= 0) cls = "seats-full";
-                else if (left < 30) cls = "seats-warning";
-
-                info.innerHTML += `<div><span class="${cls}">${short}: ${left}/${ROOM_CAPACITY[room]}</span></div>`;
+                const roomBookings = dayBookings.filter(b => b.room === room);
+                const totalSeats = roomBookings.reduce((sum, b) => sum + b.participants, 0);
+                const available = ROOM_CAPACITY[room] - totalSeats;
+                roomSeats[room] = { used: totalSeats, available: available };
             });
 
-            div.appendChild(info);
+            dayDiv.classList.add('has-booking');
 
-            // Indicators
+            // แสดงจำนวนการจอง
+            const countDiv = document.createElement('div');
+            countDiv.className = 'booking-count';
+            countDiv.textContent = `${dayBookings.length} การจอง`;
+            dayDiv.appendChild(countDiv);
+
+            // แสดงที่นั่งคงเหลือ
+            const seatsInfo = document.createElement('div');
+            seatsInfo.className = 'seats-info';
+
+            Object.keys(roomSeats).forEach(room => {
+                const info = roomSeats[room];
+                const roomShort = room === 'ห้องประชุม A' ? 'A' : room === 'ห้องประชุม B' ? 'B' : 'Hall';
+                const seatDiv = document.createElement('div');
+
+                let className = 'seats-available';
+                if (info.available <= 0) className = 'seats-full';
+                else if (info.available < 30) className = 'seats-warning';
+
+                seatDiv.innerHTML = `<span class="${className}">${roomShort}: ${info.available}/${ROOM_CAPACITY[room]}</span>`;
+                seatsInfo.appendChild(seatDiv);
+            });
+
+            dayDiv.appendChild(seatsInfo);
+
+            // Room indicators
             const indicator = document.createElement('div');
             indicator.className = 'booking-indicator';
 
-            [...new Set(books.map(b => b.room))].forEach(room => {
+            const rooms = [...new Set(dayBookings.map(b => b.room))];
+            rooms.forEach(room => {
                 const dot = document.createElement('div');
-                dot.className = 'room-dot ' +
-                    (room === 'ห้องประชุม A' ? 'room-a' :
-                     room === 'ห้องประชุม B' ? 'room-b' : 'hall');
+                dot.className = 'room-dot';
+                if (room === 'ห้องประชุม A') dot.classList.add('room-a');
+                else if (room === 'ห้องประชุม B') dot.classList.add('room-b');
+                else if (room === 'หอประชุม') dot.classList.add('hall');
                 indicator.appendChild(dot);
             });
 
-            div.appendChild(indicator);
+            dayDiv.appendChild(indicator);
 
-            div.addEventListener('click', () => showBookingDetails(dateStr, books));
+            // Click to show details
+            dayDiv.addEventListener('click', () => showBookingDetails(dateStr, dayBookings));
         }
     }
 
-    return div;
+    return dayDiv;
 }
 
-// =====================================
+// =======================
 // Show Booking Details
-// =====================================
+// =======================
 function showBookingDetails(dateStr, bookings) {
-    const details = document.getElementById('bookingDetails');
-    const dateText = document.getElementById('selectedDate');
-    const list = document.getElementById('bookingList');
+    const detailsDiv = document.getElementById('bookingDetails');
+    const dateSpan = document.getElementById('selectedDate');
+    const listDiv = document.getElementById('bookingList');
 
-    if (!details || !dateText || !list) return;
-
-    const [y, m, d] = dateStr.split('-');
-    const MONTH = [
-        "มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
-        "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"
+    // Format date
+    const [year, month, day] = dateStr.split('-');
+    const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
+    dateSpan.textContent = `${parseInt(day)} ${thaiMonths[parseInt(month) - 1]} ${parseInt(year) + 543}`;
 
-    dateText.textContent = `${parseInt(d)} ${MONTH[m - 1]} ${parseInt(y) + 543}`;
-    list.innerHTML = "";
+    // Clear list
+    listDiv.innerHTML = '';
 
-    const summary = document.createElement('div');
-    summary.className = 'booking-summary';
+    // สรุปจำนวนที่นั่งแต่ละห้อง
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'booking-summary';
 
-    ['ห้องประชุม A','ห้องประชุม B','หอประชุม'].forEach(room => {
-        const used = bookings.filter(b => b.room === room)
-            .reduce((sum, b) => sum + b.participants, 0);
+    ['ห้องประชุม A', 'ห้องประชุม B', 'หอประชุม'].forEach(room => {
+        const roomBookings = bookings.filter(b => b.room === room);
+        const totalUsed = roomBookings.reduce((sum, b) => sum + b.participants, 0);
+        const available = ROOM_CAPACITY[room] - totalUsed;
 
-        const left = ROOM_CAPACITY[room] - used;
-        const short = room.replace("ห้องประชุม ", "");
+        const summaryItem = document.createElement('div');
+        summaryItem.className = 'summary-item';
+        if (room === 'ห้องประชุม A') summaryItem.classList.add('room-a');
+        else if (room === 'ห้องประชุม B') summaryItem.classList.add('room-b');
+        else summaryItem.classList.add('hall');
 
-        summary.innerHTML += `
-            <div class="summary-item ${room === 'ห้องประชุม A' ? 'room-a' : room === 'ห้องประชุม B' ? 'room-b' : 'hall'}">
-                <strong>${left}</strong>
-                <span>${short} - ที่นั่งเหลือ</span>
+        const roomShort = room.replace('ห้องประชุม ', '');
+
+        summaryItem.innerHTML = `
+            <strong>${available}</strong>
+            <span>${roomShort} - ที่นั่งเหลือ</span>
+            <div style="font-size:0.75rem; margin-top:5px; color:#6c757d;">
+                ใช้ไป ${totalUsed} คน
             </div>
         `;
+
+        summaryDiv.appendChild(summaryItem);
     });
 
-    list.appendChild(summary);
+    listDiv.appendChild(summaryDiv);
 
-    bookings.forEach(b => {
+    // แสดงรายละเอียดแต่ละการจอง
+    bookings.forEach(booking => {
         const item = document.createElement('div');
         item.className = 'booking-item';
+        if (booking.room === 'ห้องประชุม B') item.classList.add('room-b');
+        else if (booking.room === 'หอประชุม') item.classList.add('hall');
+
+        let statusClass = 'status-pending';
+        if (booking.status === 'อนุมัติ') statusClass = 'status-approved';
+        else if (booking.status === 'ไม่อนุมัติ') statusClass = 'status-rejected';
+
+        // ✅ Format timestamp
+        let formattedTimestamp = 'ไม่ระบุ';
+        if (booking.timestamp) {
+            try {
+                const ts = new Date(booking.timestamp);
+                if (!isNaN(ts)) {
+                    const day = String(ts.getDate()).padStart(2, '0');
+                    const month = String(ts.getMonth() + 1).padStart(2, '0');
+                    const year = ts.getFullYear() + 543;
+                    const hours = String(ts.getHours()).padStart(2, '0');
+                    const minutes = String(ts.getMinutes()).padStart(2, '0');
+                    formattedTimestamp = `${day}/${month}/${year} ${hours}:${minutes} น.`;
+                }
+            } catch (e) {
+                formattedTimestamp = String(booking.timestamp);
+            }
+        }
+
         item.innerHTML = `
-            <strong>${b.name}</strong>
-            <div>${b.room} | ${b.startTime} - ${b.endTime}</div>
-            <div>ผู้เข้าร่วม: ${b.participants}</div>
-            <div>วัตถุประสงค์: ${b.purpose}</div>
+            <h4>🏢 ${booking.room}</h4>
+            <p><b>⏰ เวลา:</b> ${booking.startTime} - ${booking.endTime} น.</p>
+            <p><b>👤 ผู้จอง:</b> ${booking.name}</p>
+            <p><b>👥 จำนวน:</b> ${booking.participants} คน</p>
+            <p><b>🏛️ หน่วยงาน:</b> ${booking.department}</p>
+            <p><b>🎯 วัตถุประสงค์:</b> ${booking.purpose}</p>
+            <p><b>🔧 อุปกรณ์:</b> ${booking.additionalInfo}</p>
+            <p><b>☕ พักเบรก:</b> ${booking.breakTime}</p>
+            <p><b>📊 สถานะ:</b> <span class="booking-status ${statusClass}">${booking.status}</span></p>
+            <div class="booking-timestamp">⏱️ ส่งจองเมื่อ: ${formattedTimestamp}</div>
         `;
-        list.appendChild(item);
+
+        listDiv.appendChild(item);
     });
 
-    details.style.display = 'block';
+    detailsDiv.style.display = 'block';
+    detailsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function showCalendarError(msg) {
-    const grid = document.getElementById('calendarGrid');
-    if (!grid) return;
-    grid.innerHTML = `
-        <div style="grid-column:1/-1; text-align:center; padding:20px; color:#dc3545;">
-            ${msg}
-        </div>`;
-}
+// =======================
+// Form Submission Handler
+// =======================
+document.getElementById("bookingForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const fullName = document.getElementById("fullName").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const department = document.getElementById("department").value.trim();
+    const participants = parseInt(document.getElementById("participants").value);
+    const bookingDate = document.getElementById("bookingDate").value;
+    const startTime = document.getElementById("startTime").value;
+    const endTime = document.getElementById("endTime").value;
+    const purpose = document.getElementById("purpose").value.trim();
+    const room = document.querySelector('input[name="room"]:checked');
+    const breakTime = document.getElementById("breakTime").value;
+
+    let additionalInfo = document.getElementById("additionalInfo").value;
+
+    if (additionalInfo === "other") {
+        const otherText = document.getElementById("otherText").value.trim();
+        if (otherText.length > 0) {
+            additionalInfo = "อื่นๆ: " + otherText;
+        } else {
+            showStatus("❌ กรุณาระบุรายละเอียดในช่อง 'อื่นๆ'", false);
+            return;
+        }
+    } else if (additionalInfo === "") {
+        showStatus("❌ กรุณาเลือกอุปกรณ์เพิ่มเติม", false);
+        return;
+    }
+
+    if (!room) {
+        showStatus("❌ กรุณาเลือกห้องประชุม", false);
+        return;
+    }
+
+    if (startTime >= endTime) {
+        showStatus("❌ เวลาเริ่มต้นต้องมาก่อนเวลาสิ้นสุด", false);
+        return;
+    }
+
+    if (!breakTime || breakTime === "") {
+        showStatus("❌ กรุณาเลือกช่วงเวลาพัก", false);
+        return;
+    }
+
+    if (purpose.length < 5) {
+        showStatus("❌ กรุณาระบุวัตถุประสงค์ให้ชัดเจน (อย่างน้อย 5 ตัวอักษร)", false);
+        return;
+    }
+
+    // ✅ ตรวจสอบเวลาซ้อนทับและที่นั่งเต็ม
+    toggleLoading(true);
+
+    try {
+        // โหลดข้อมูลการจองทั้งหมดจาก API
+        const scriptURL = "https://script.google.com/macros/s/AKfycbxyAF2s2dtvV9T7eGffmDbP2QkmMYiNEsT3tKDRmxhi6pRNtq74aAJCwjmL1Zj-Ec3uPg/exec";
+        const response = await fetch(scriptURL);
+        const allData = await response.json();
+
+        if (!Array.isArray(allData)) {
+            throw new Error('ไม่สามารถโหลดข้อมูลการจองได้');
+        }
+
+        // กรองเฉพาะการจองในวันและห้องเดียวกัน
+        const sameRoomBookings = allData.filter(booking => {
+            const bookDate = formatDateString(booking.bookingDate);
+            return bookDate === bookingDate && booking.room === room.value;
+        });
+
+        // ✅ 1. ตรวจสอบเวลาซ้อนทับ
+        const hasTimeConflict = sameRoomBookings.some(booking => {
+            const existingStart = booking.startTime;
+            const existingEnd = booking.endTime;
+
+            // ตรวจสอบว่าเวลาซ้อนทับหรือไม่
+            const isOverlapping = (
+                (startTime >= existingStart && startTime < existingEnd) ||
+                (endTime > existingStart && endTime <= existingEnd) ||
+                (startTime <= existingStart && endTime >= existingEnd)
+            );
+
+            if (isOverlapping) {
+                console.log('⚠️ เวลาซ้อนทับกับ:', booking);
+            }
+
+            return isOverlapping;
+        });
+
+        if (hasTimeConflict) {
+            toggleLoading(false);
+            showStatus(`❌ ไม่สามารถจองได้! ห้อง${room.value}มีคนจองในช่วงเวลา ${startTime}-${endTime} น. แล้ว`, false);
+            return;
+        }
+
+        // ✅ 2. ตรวจสอบจำนวนที่นั่ง
+        const totalBookedSeats = sameRoomBookings.reduce((sum, booking) => {
+            return sum + (parseInt(booking.participants) || 0);
+        }, 0);
+
+        const roomCapacity = ROOM_CAPACITY[room.value];
+        const remainingSeats = roomCapacity - totalBookedSeats;
+
+        if (participants > remainingSeats) {
+            toggleLoading(false);
+            showStatus(`❌ ที่นั่งไม่พอ! ${room.value} เหลือที่นั่งเพียง ${remainingSeats} ที่ แต่คุณต้องการจอง ${participants} ที่`, false);
+            return;
+        }
+
+        // ✅ ผ่านการตรวจสอบทั้งหมด ส่งข้อมูล
+        const params = new URLSearchParams();
+        params.append("fullName", fullName);
+        params.append("email", email);
+        params.append("department", department);
+        params.append("participants", participants);
+        params.append("bookingDate", bookingDate);
+        params.append("startTime", startTime);
+        params.append("endTime", endTime);
+        params.append("purpose", purpose);
+        params.append("additionalInfo", additionalInfo);
+        params.append("room", room.value);
+        params.append("breakTime", breakTime);
+        params.append("timestamp", new Date().toISOString());
+
+        submitForm(params);
+
+    } catch (error) {
+        toggleLoading(false);
+        showStatus("❌ เกิดข้อผิดพลาดในการตรวจสอบข้อมูล: " + error.message, false);
+        console.error('Validation error:', error);
+    }
+
+    
+});
