@@ -43,7 +43,7 @@ function toggleLoading(show) {
 // Submit Booking Form
 // =====================================
 function submitForm(params) {
-    const scriptURL = "https://script.google.com/macros/s/AKfycbzB1JwJltwD8CNx5iAIz80uq5O_oqV5LZBLcrcuEcWLWJqY2CBAjDCDuBHTcRe9W1Wbzw/exec";
+    const scriptURL = "https://script.google.com/macros/s/AKfycbxuYQlZqkgobToZXEGP9qTR64NgGCgn1pscyhkorM2tLBvDjSdQh8h7wH0V5tCi8lr9jw/exec";
     toggleLoading(true);
 
     fetch(scriptURL, {
