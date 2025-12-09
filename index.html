@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 
@@ -9,7 +8,6 @@
   <link rel="stylesheet" href="styleN.css">
 </head>
 <script>
-  // แก้ ID ตรงนี้จาก optionSelect เป็น additionalInfo
   function toggleOtherInput() {
     const select = document.getElementById("additionalInfo");
     const otherBox = document.getElementById("otherInputBox");
@@ -52,7 +50,6 @@
         <div class="tip">💡 เคล็ดลับ: จำกัดช่วงเวลาประชุมไม่เกิน 3 ชั่วโมง เพื่อให้เพียงพอต่อผู้ใช้รายอื่น</div>
       </div>
 
-      <!-- ✅ ปุ่มเมนู -->
       <div class="menu-btn" id="mainMenuBtn" role="button" tabindex="0">
         <b>📝 จองคิว</b>
         <div class="muted">กลับไปหน้าฟอร์มจองห้อง</div>
@@ -63,15 +60,14 @@
         <div class="muted">ดูปฏิทินการจองห้องประชุม</div>
       </div>
 
-      <div class="menu-btn" id="statusBtn" role="button" tabindex="0">
-        <b>📊 Status</b>
-        <div class="muted">ดูรายการที่ถูกจองแล้ว</div>
-      </div>
+            <div class="menu-btn" id="statusBtn" role="button" tabindex="0">
+              <b>📊 Status</b>
+              <div class="muted">ดูรายการที่ถูกจองแล้ว</div>
+            </div>
 
     </aside>
 
     <main class="panel-right">
-      <!-- ✅ หน้าฟอร์มจอง (เดิม) -->
       <div id="bookingPage">
         <h2>ฟอร์มจองคิวการเข้าประชุม</h2>
 
@@ -79,8 +75,15 @@
           <div class="row">
             <div><label>👤ชื่อ-สกุล</label><input type="text" id="fullName" placeholder="เช่น นายวุฒิชัย" required>
             </div>
-            <div><label>📞อีเมล / เบอร์ภายใน</label><input type="email" id="email" placeholder="you@school.ac.th"
-                required></div>
+            <div>
+              <label>📧 อีเมล หรือ 📞 เบอร์โทรศัพท์</label>
+              <input type="text" id="email" placeholder="you@school.ac.th หรือ 0812345678" required>
+              <small style="display:block; margin-top:4px; font-size:11px; color:#6b7280;">
+                 • ใส่อีเมลเพื่อรับแจ้งเตือนเมื่ออนุมัติ  <br>
+                  • กรอกเบอร์โทรจะไม่ส่ง SMS — ตรวจสอบสถานะได้ที่ “เช็คห้องว่าง” หรือ “Status”  <br>
+                 • เลือกใส่อีเมลหรือเบอร์โทรก็ได้
+              </small>
+            </div>
           </div>
 
           <div class="row">
@@ -160,7 +163,6 @@
         </form>
       </div>
 
-      <!-- ✅ หน้าปฏิทิน (ใหม่) -->
       <div id="calendarPage" style="display:none;">
         <h2>📅 เช็คห้องว่าง</h2>
         <p class="muted">ดูปฏิทินการจองห้องประชุมทั้งหมด</p>
@@ -171,7 +173,6 @@
           <button id="nextMonth" class="btn-ghost">เดือนถัดไป ▶</button>
         </div>
 
-        <!-- ตัวกรองห้อง -->
         <div class="room-filter">
           <label><input type="checkbox" id="filterRoomA" checked> ห้อง A</label>
           <label><input type="checkbox" id="filterRoomB" checked> ห้อง B</label>
