@@ -1,5 +1,5 @@
 // =======================
-// Configuration
+// Backend
 // =======================
 const ROOM_CAPACITY = {
     'ห้องประชุม A': 60,
